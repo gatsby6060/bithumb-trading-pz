@@ -1,0 +1,20 @@
+# Local Environment Variables
+.env
+
+# Antigravity Brain / Conversation Logs
+.gemini/
+.brain/
+
+# Node.js dependencies
+node_modules/
+
+# Python cache & virtual environment
+__pycache__/
+*.pyc
+.venv/
+env/
+venv/
+
+# System Files
+Thumbs.db
+Desktop.ini

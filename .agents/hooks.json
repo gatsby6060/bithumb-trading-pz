@@ -1,0 +1,32 @@
+{
+  "safety-gate": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/safety_check.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "auto-formatter": {
+    "enabled": true,
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/auto_format.js",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
