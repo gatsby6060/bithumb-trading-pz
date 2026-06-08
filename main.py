@@ -1,5 +1,14 @@
 import os
 import sys
+
+# Reconfigure stdout/stderr to utf-8 to prevent CP949 encoding errors on Windows when printing emojis
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 import asyncio
 import signal
 import logging
@@ -8,6 +17,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 from aiohttp import web
+
 
 # Import our components
 from database.manager import TimescaleDBManager
@@ -18,6 +28,13 @@ from strategy.ai_model import FreqaiModel
 from execution.risk_manager import RiskManager
 from execution.order_executor import OrderExecutor
 from execution.manual_sell_verifier import ManualSellVerifier
+
+# Import AI Sentiment components
+from ai_engine.sentiment.gemini_analyzer import GeminiSentimentAnalyzer
+from ai_engine.sentiment.langchain_analyzer import LangChainSentimentAnalyzer
+from ai_engine.agent.robo_agent import RoboAdvisorAgent
+from ai_engine.memory.short_term_memory import AgentMemory
+
 
 # Setup Logging
 logging.basicConfig(
@@ -96,6 +113,21 @@ class TradingBotApp:
         self.candle_buffer: Dict[str, list] = {symbol: [] for symbol in self.symbols}
         self._candle_current: Dict[str, Optional[Dict]] = {symbol: None for symbol in self.symbols}
         self.CANDLE_BUFFER_SIZE = 100  # keep last 100 minutes of 1m candles
+
+        # AI Sentiment configurations & state caching
+        self.sentiment_analyzer_mode = "langchain"  # Options: "gemini", "langchain", "react"
+        self.sentiment_analyzer = None
+        self.latest_sentiment = {
+            symbol: {
+                "sentiment": "Neutral",
+                "score": 0.0,
+                "summary": "No sentiment analysis performed yet."
+            }
+            for symbol in self.symbols
+        }
+        self.last_sentiment_check = {symbol: 0.0 for symbol in self.symbols}
+        self.sentiment_check_interval = 300  # 5 minutes
+
 
     async def update_account_state(self):
         """
@@ -211,13 +243,17 @@ class TradingBotApp:
 
         # 7. Strategy Engine (Strategy Mixer)
         self.strategy_engine = StrategyEngine()
-        # Initialize default weights: 50% Freqai (AI), 30% Bollinger, 20% RSI
-        default_weights = {"AI": 0.5, "BOLLINGER": 0.3, "RSI": 0.2}
+        # Initialize default weights: 40% Freqai (AI), 20% Sentiment (LLM), 20% Bollinger, 20% RSI
+        default_weights = {"AI": 0.4, "SENTIMENT": 0.2, "BOLLINGER": 0.2, "RSI": 0.2}
         for symbol in self.symbols:
             self.strategy_engine.register_symbol(symbol, default_weights, autopilot_on=True)
 
+        # Initialize Sentiment Analyzer
+        self.initialize_sentiment_analyzer()
+
         # 8. Bithumb Websocket Client
         self.ws_client = BithumbWebsocketClient(self.symbols, self.event_queue)
+
 
         # Signal handlers for Graceful Shutdown
         for sig in (signal.SIGINT, signal.SIGTERM):
@@ -270,6 +306,110 @@ class TradingBotApp:
                 logger.error(f"Failed to prefetch candles for {symbol}: {e}")
         
         logger.info("Historical candle pre-fetch complete. Strategy indicators are ready.")
+
+    def initialize_sentiment_analyzer(self):
+        logger.info(f"Initializing AI Sentiment Analyzer (Mode: {self.sentiment_analyzer_mode})...")
+        try:
+            if self.sentiment_analyzer_mode == "gemini":
+                self.sentiment_analyzer = GeminiSentimentAnalyzer()
+            elif self.sentiment_analyzer_mode == "langchain":
+                self.sentiment_analyzer = LangChainSentimentAnalyzer()
+            elif self.sentiment_analyzer_mode == "react":
+                self.sentiment_analyzer = RoboAdvisorAgent(verbose=True)
+            else:
+                logger.error(f"Unknown sentiment mode: {self.sentiment_analyzer_mode}. Defaulting to langchain.")
+                self.sentiment_analyzer = LangChainSentimentAnalyzer()
+            logger.info("AI Sentiment Analyzer initialized successfully.")
+        except Exception as e:
+            logger.error(f"Failed to initialize AI Sentiment Analyzer: {e}. Bypassing.")
+            self.sentiment_analyzer = None
+
+    def get_recent_memories_for_symbol(self, target_asset: str) -> str:
+        try:
+            memory = AgentMemory()
+            return memory.load_recent_memories(target_asset, limit=5)
+        except Exception as e:
+            logger.error(f"Failed to load recent memories for {target_asset}: {e}")
+            return "메모리를 읽을 수 없습니다."
+
+    async def update_sentiment_in_background(self, symbol: str, price: float):
+        if not self.sentiment_analyzer:
+            logger.warning("Sentiment Analyzer is not initialized. Skipping update.")
+            return
+
+        try:
+            target_asset = symbol.split("-")[1]
+            keyword_map = {
+                "BTC": "비트코인",
+                "ETH": "이더리움",
+                "XRP": "리플",
+                "SOL": "솔라나",
+                "ADA": "에이다",
+                "DOGE": "도지코인",
+            }
+            keyword = keyword_map.get(target_asset, target_asset)
+            
+            logger.info(f"🤖 [SENTIMENT] Fetching latest news for {target_asset}...")
+            from data_collectors.news_crawler import NewsCrawler
+            crawler = NewsCrawler(keyword)
+            news_list = await asyncio.to_thread(crawler.fetch_latest_news)
+            
+            combined_text = ""
+            if news_list:
+                target_news = news_list[:10]
+                combined_text = "\n".join([
+                    f"- [{n['published']}] {n['title']}" for n in target_news
+                ])
+            else:
+                # Fallback to history
+                import os, json
+                history_file = os.path.join("data", "news_history.json")
+                if os.path.exists(history_file):
+                    try:
+                        with open(history_file, "r", encoding="utf-8") as f:
+                            history = json.load(f)
+                        history.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+                        target_news = history[:10]
+                        combined_text = "\n".join([
+                            f"- [{n.get('published', '')}] {n.get('title', '')}" for n in target_news
+                        ])
+                    except Exception:
+                        pass
+            
+            if not combined_text:
+                combined_text = f"{target_asset}에 관한 새로운 뉴스가 없습니다."
+                
+            logger.info(f"🤖 [SENTIMENT] Running AI analysis for {target_asset} ({self.sentiment_analyzer_mode})...")
+            result = await self.sentiment_analyzer.analyze(combined_text, target_asset, price)
+            
+            self.latest_sentiment[symbol] = {
+                "sentiment": result.get("sentiment", "Neutral"),
+                "score": float(result.get("score", 0.0)),
+                "summary": result.get("summary", "")
+            }
+            
+            # Log inside DB if manager is active
+            if self.db_manager:
+                try:
+                    action_str = f"AI 감성 분석 완료: {result.get('sentiment')} ({result.get('score')})"
+                    await self.db_manager.log_ai_activity(symbol, "SENTIMENT_CHECK", action_str)
+                except Exception as e:
+                    logger.error(f"Failed to log sentiment check activity: {e}")
+            
+            logger.info(f"🤖 [SENTIMENT] Result for {target_asset}: {result.get('sentiment')} ({result.get('score')}) - Reason: {result.get('summary')}")
+            
+            # Broadcast to web dashboard
+            await self._broadcast_ws({
+                "type": "sentiment_update",
+                "symbol": symbol,
+                "sentiment": result.get("sentiment", "Neutral"),
+                "score": float(result.get("score", 0.0)),
+                "summary": result.get("summary", ""),
+                "past_memory": self.get_recent_memories_for_symbol(target_asset)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error updating sentiment in background for {symbol}: {e}")
 
 
     async def start(self):
@@ -355,6 +495,16 @@ class TradingBotApp:
         # Cache latest price
         self.latest_prices[symbol] = price
 
+        # Trigger periodic background sentiment check (5 minutes interval)
+        loop = asyncio.get_running_loop()
+        current_time = loop.time()
+        if symbol not in self.last_sentiment_check:
+            self.last_sentiment_check[symbol] = 0.0
+            
+        if current_time - self.last_sentiment_check[symbol] > self.sentiment_check_interval:
+            self.last_sentiment_check[symbol] = current_time
+            asyncio.create_task(self.update_sentiment_in_background(symbol, price))
+
         # Build in-memory candle from tick
         self._update_candle_buffer(symbol, price, volume, ts)
 
@@ -395,9 +545,13 @@ class TradingBotApp:
             except Exception as e:
                 logger.error(f"Freqai prediction error: {e}")
 
+        # Get the latest raw sentiment score [-1, 1], mapping to [0, 100]
+        raw_sentiment = self.latest_sentiment.get(symbol, {}).get("score", 0.0)
+        sentiment_score_0_100 = 50.0 + (raw_sentiment * 50.0)
+
         # 4. Strategy Engine Composite Score
-        composite_score = self.strategy_engine.calculate_composite_score(symbol, ohlcv, ai_score)
-        logger.info(f"[{symbol}] Composite Score: {composite_score:.1f} | Candles: {len(ohlcv)} | AI: {ai_score:.1f}")
+        composite_score = self.strategy_engine.calculate_composite_score(symbol, ohlcv, ai_score, sentiment_score_0_100)
+        logger.info(f"[{symbol}] Composite Score: {composite_score:.1f} | Candles: {len(ohlcv)} | AI: {ai_score:.1f} | Sentiment: {sentiment_score_0_100:.1f}")
         
         # Broadcast to web dashboard
         await self._broadcast_ws({
@@ -408,8 +562,10 @@ class TradingBotApp:
             "ask_bid": ask_bid,
             "timestamp": ts.isoformat() if hasattr(ts, 'isoformat') else str(ts),
             "ai_score": ai_score,
+            "sentiment_score": sentiment_score_0_100,
             "composite_score": composite_score
         })
+
         
         # 5. Trading Decision
         if composite_score >= 75.0:
@@ -472,13 +628,17 @@ class TradingBotApp:
             web.get('/api/ai_activities', self._api_ai_activities),
             web.get('/api/trade_history', self._api_trade_history),
             web.get('/api/system_logs', self._api_system_logs),
+            web.get('/api/sentiment_state', self._api_sentiment_state),
             web.post('/api/manual_trade', self._api_manual_trade),
             web.post('/api/manual_sell_verifier', self._api_manual_sell_verifier),
             web.post('/api/update_strategy_weights', self._api_update_strategy_weights),
             web.post('/api/set_autopilot', self._api_set_autopilot),
             web.post('/api/add_symbol', self._api_add_symbol),
             web.post('/api/panic', self._api_panic),
+            web.post('/api/set_sentiment_mode', self._api_set_sentiment_mode),
+            web.post('/api/trigger_sentiment_update', self._api_trigger_sentiment_update),
         ])
+
         
         # Serve static files from ./public
         if os.path.exists("./public"):
@@ -589,6 +749,73 @@ class TradingBotApp:
 
     async def _api_system_logs(self, request):
         return web.json_response(self.system_logs)
+
+    async def _api_sentiment_state(self, request):
+        symbol = request.rel_url.query.get("symbol", "KRW-BTC")
+        target_asset = symbol.split("-")[1]
+        
+        # Load recent memories
+        memories = self.get_recent_memories_for_symbol(target_asset)
+        
+        # Fetch news list from news_history.json
+        import os, json
+        news_list = []
+        history_file = os.path.join("data", "news_history.json")
+        if os.path.exists(history_file):
+            try:
+                with open(history_file, "r", encoding="utf-8") as f:
+                    news_list = json.load(f)
+                news_list.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+                # Keep top 10
+                news_list = news_list[:10]
+            except Exception:
+                pass
+                
+        state = {
+            "mode": self.sentiment_analyzer_mode,
+            "latest_sentiment": self.latest_sentiment,
+            "past_memory": memories,
+            "news_list": news_list
+        }
+        return web.json_response(state)
+
+    async def _api_set_sentiment_mode(self, request):
+        try:
+            data = await request.json()
+            mode = data.get("mode")
+            if mode not in ["gemini", "langchain", "react"]:
+                return web.json_response({"status": "error", "message": "Invalid sentiment mode"}, status=400)
+                
+            self.sentiment_analyzer_mode = mode
+            self.initialize_sentiment_analyzer()
+            
+            if self.db_manager:
+                action_str = f"AI 감성 분석 모드 변경: {mode.upper()}"
+                await self.db_manager.log_ai_activity("GLOBAL", "SENTIMENT_MODE_CHANGE", action_str)
+                
+            return web.json_response({"status": "success", "mode": self.sentiment_analyzer_mode})
+        except Exception as e:
+            return web.json_response({"status": "error", "message": str(e)}, status=400)
+
+    async def _api_trigger_sentiment_update(self, request):
+        try:
+            data = await request.json()
+            symbol = data.get("symbol", "KRW-BTC")
+            price = self.latest_prices.get(symbol, 0.0)
+            if price == 0.0:
+                # Fallback to fetching ticker price
+                try:
+                    price_info = await self.rest_client.get_tickers([symbol])
+                    price = float(price_info.get(symbol, 0.0))
+                except Exception:
+                    pass
+            
+            # Run background task immediately
+            asyncio.create_task(self.update_sentiment_in_background(symbol, price))
+            return web.json_response({"status": "success"})
+        except Exception as e:
+            return web.json_response({"status": "error", "message": str(e)}, status=400)
+
 
     async def _api_manual_trade(self, request):
         try:

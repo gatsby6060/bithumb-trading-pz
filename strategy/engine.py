@@ -64,7 +64,7 @@ class StrategyEngine:
         self.autopilot_modes[symbol] = enabled
         logger.info(f"Autopilot mode for '{symbol}' set to: {enabled}")
 
-    def calculate_composite_score(self, symbol: str, ohlcv: List[Dict[str, Any]], ai_score: float) -> float:
+    def calculate_composite_score(self, symbol: str, ohlcv: List[Dict[str, Any]], ai_score: float, sentiment_score: float = 50.0) -> float:
         """
         Calculate composite trading score (0.0 to 100.0) based on weighted average of mixed strategies.
         If a strategy calculation fails, it defaults to neutral (50.0).
@@ -84,6 +84,8 @@ class StrategyEngine:
         for name, weight in weights.items():
             if name.upper() == "AI":
                 score = ai_score
+            elif name.upper() == "SENTIMENT":
+                score = sentiment_score
             else:
                 strategy_inst = self.strategy_instances[symbol].get(name)
                 if strategy_inst:
@@ -100,3 +102,4 @@ class StrategyEngine:
         # Normalize score
         final_score = composite_score / total_weight
         return final_score
+

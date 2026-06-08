@@ -15,6 +15,11 @@ __pycache__/
 env/
 venv/
 
+# Local databases and caches
+*.db
+data/
+
 # System Files
 Thumbs.db
 Desktop.ini
+

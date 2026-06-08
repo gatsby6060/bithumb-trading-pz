@@ -436,23 +436,67 @@
                         </div>
 
                         <!-- Gemini AI Live Report -->
-                        <div class="pro-ai-briefing">
-                            <div class="panel-header">
-                                <span class="panel-title" style="color: var(--color-ai);">
-                                    <i class="fa-solid fa-brain"></i> Gemini AI 실시간 투자 의사결정 브리핑 보고서
-                                </span>
-                                <span style="font-size: 11px; color: var(--text-secondary);">업데이트: 실시간 반영</span>
+                        <div class="pro-ai-briefing" style="display: flex; flex-direction: column; gap: 16px; padding: 20px;">
+                            <div class="panel-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 12px; margin-bottom: 0; display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <i class="fa-solid fa-brain" style="color: var(--color-ai); font-size: 18px;"></i>
+                                    <span class="panel-title" style="color: var(--color-ai); margin: 0;">AI Sentiment 분석 엔진 및 관제 데스크</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <select class="custom-select" id="sentiment-engine-select" style="padding: 4px 8px; font-size: 12px; width: 150px; background-color: var(--card-bg); border-color: rgba(255,255,255,0.1); height: auto;">
+                                        <option value="gemini">Direct Gemini API</option>
+                                        <option value="langchain" selected>LangChain Express</option>
+                                        <option value="react">ReAct Agent (Tools)</option>
+                                    </select>
+                                    <button class="btn-modal-confirm btn-modal-confirm-success" id="btn-trigger-sentiment" style="padding: 4px 12px; font-size: 12px; height: auto; margin: 0; line-height: 1.5;">
+                                        <i class="fa-solid fa-arrows-rotate"></i> 즉시 분석
+                                    </button>
+                                </div>
                             </div>
-                            <div class="briefing-text">
-                                <p style="font-weight: 600; color: var(--text-primary);">[시장 매크로 및 거래쌍 분석 요약]</p>
-                                <p style="margin-top: 6px;">현재 KRW-BTC는 91,200,000 KRW 지지선 부근에서 강력한 하방 경직성을 확보하고 있습니다. FreqAI 모델의 상승 예측 신뢰도는 84.2%로 산출되었으며, 실시간 연동된 온체인 거래소 예치 자산 흐름은 기관의 완만한 장외 거래(OTC) 누적 단계에 진입했음을 시사합니다.</p>
-                                <ul class="briefing-bullet">
-                                    <li><strong>매수 권고 가격대:</strong> 91,000,000 KRW ~ 91,500,000 KRW 분할 진입 추천.</li>
-                                    <li><strong>리스크 관리 지침:</strong> 2% 룰에 의거하여 최대 손실 한도를 89,380,000 KRW로 설정할 것을 제안합니다.</li>
-                                    <li><strong>매도 대기 권장:</strong> 1.5초 실시간 후보고 검증기가 켜져 있으며, 지지선 이탈 없는 변동 구간에서는 급격한 수동 매도를 보류하는 것이 자산 증가에 유리합니다.</li>
-                                </ul>
+                            
+                            <!-- Sentiment Dashboard Cards -->
+                            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 16px;">
+                                <div class="panel-card" style="margin: 0; background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.03); padding: 16px;">
+                                    <span style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 6px;">실시간 감성 스코어</span>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span id="sentiment-badge" class="badge-ai" style="padding: 4px 10px; font-size: 14px; font-weight: 700; background-color: rgba(255, 255, 255, 0.05); color: var(--text-primary);">Neutral</span>
+                                        <span id="sentiment-score-text" style="font-family: var(--font-outfit); font-size: 24px; font-weight: 700; color: var(--text-primary);">0.00</span>
+                                    </div>
+                                    <div style="margin-top: 12px; font-size: 11px; color: var(--text-secondary);">
+                                        범위: -1.0(강한 악재) ~ +1.0(강한 호재)
+                                    </div>
+                                </div>
+                                <div class="panel-card" style="margin: 0; background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.03); padding: 16px;">
+                                    <span style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 6px;">AI 감성 분석 요약 보고</span>
+                                    <div id="sentiment-summary-text" style="font-size: 13px; line-height: 1.6; color: var(--text-primary); max-height: 80px; overflow-y: auto;">
+                                        뉴스를 분석하기 전입니다. '즉시 분석'을 누르거나 다음 주기적인 틱이 들어올 때까지 기다려 주세요.
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Bottom detailed view -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 250px;">
+                                <!-- News Feed -->
+                                <div class="panel-card" style="margin: 0; background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.03); padding: 12px 16px; display: flex; flex-direction: column;">
+                                    <div style="font-weight: 600; font-size: 13px; color: var(--text-primary); margin-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); padding-bottom: 6px;">
+                                        <i class="fa-solid fa-rss" style="color: #F59E0B; margin-right: 6px;"></i> 실시간 수집 뉴스 피드
+                                    </div>
+                                    <div id="sentiment-news-feed" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+                                        <!-- Rendered dynamically -->
+                                    </div>
+                                </div>
+                                <!-- Reflection History (Memory) -->
+                                <div class="panel-card" style="margin: 0; background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255, 255, 255, 0.03); padding: 12px 16px; display: flex; flex-direction: column;">
+                                    <div style="font-weight: 600; font-size: 13px; color: var(--text-primary); margin-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); padding-bottom: 6px;">
+                                        <i class="fa-solid fa-book-open" style="color: var(--color-ai); margin-right: 6px;"></i> AI 성찰 성과 오답 노트 (Agent Memory)
+                                    </div>
+                                    <div id="sentiment-reflection-log" style="flex: 1; overflow-y: auto; font-family: monospace; white-space: pre-wrap; font-size: 11px; color: #9CA3AF; background-color: rgba(0, 0, 0, 0.15); padding: 8px; border-radius: 4px;">
+                                        과거 성찰 내역이 존재하지 않습니다.
+                                    </div>
+                                </div>
                             </div>
                         </div>
+
                     </div>
                 </div>
 
@@ -653,11 +697,13 @@
                 <div class="form-group">
                     <label>초기 믹싱 전략 가중치 설정</label>
                     <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--text-secondary);">
-                        <div>• AI 예측 엔진 (AI): 50%</div>
-                        <div>• 볼린저 밴드 (BOLLINGER): 30%</div>
+                        <div>• AI 예측 엔진 (AI): 40%</div>
+                        <div>• 뉴스 감성 분석 (SENTIMENT): 20%</div>
+                        <div>• 볼린저 밴드 (BOLLINGER): 20%</div>
                         <div>• RSI 상대강도지수 (RSI): 20%</div>
                     </div>
                 </div>
+
             </div>
             <div class="modal-footer">
                 <button class="btn-modal-cancel" id="btn-add-symbol-close">취소 (창 닫기)</button>

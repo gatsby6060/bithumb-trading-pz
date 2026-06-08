@@ -8,7 +8,7 @@ let dbTotalTicks = 0;
 
 // Strategy Library list (50+ available strategies)
 const STRATEGY_LIBRARY = [
-    "AI", "BOLLINGER", "RSI", "MACD", "EMA_CROSS", "SMA_CROSS", "VWAP", "ADX", "STOCH",
+    "AI", "SENTIMENT", "BOLLINGER", "RSI", "MACD", "EMA_CROSS", "SMA_CROSS", "VWAP", "ADX", "STOCH",
     "CCI", "ATR", "MFI", "CHAIKIN", "EOM", "KVO", "OBV", "ROC", "TRIX", "WILLIAMS_R",
     "SAR", "ICHIMOKU", "HEIKIN_ASHI", "PIVOT_POINTS", "FIBONACCI", "DEMA", "TEMA", "KDJ",
     "HULL_MA", "ALMA", "SINE_WAVE", "FRACTAL", "ZIGZAG", "DONCHIAN", "KELTNER", "SUPER_TREND",
@@ -24,12 +24,14 @@ document.addEventListener("DOMContentLoaded", () => {
     initSettingsControls();
     initMixerControls();
     initModalControls();
+    initSentimentControls();
     
     // Initial fetch
     fetchDashboardState();
     fetchTradeHistory();
     fetchAiActivities();
     fetchSystemLogs();
+    fetchSentimentState();
     
     // Load historical candles
     setTimeout(() => {
@@ -42,8 +44,10 @@ document.addEventListener("DOMContentLoaded", () => {
         fetchTradeHistory();
         fetchAiActivities();
         fetchSystemLogs();
+        fetchSentimentState();
     }, 3000);
 });
+
 
 // Navigation Handling
 function initNavigation() {
@@ -915,4 +919,130 @@ async function loadHistoricalCandles(symbol) {
         console.error("Error loading historical candles:", e);
     }
 }
+
+function initSentimentControls() {
+    const selectEl = document.getElementById("sentiment-engine-select");
+    if (selectEl) {
+        selectEl.addEventListener("change", async () => {
+            const mode = selectEl.value;
+            appendLog("INFO", "Sentiment", `AI 감성 분석 모드를 ${mode.toUpperCase()}(으)로 변경 요청 중...`);
+            try {
+                const response = await fetch('/api/set_sentiment_mode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode })
+                });
+                const data = await response.json();
+                if (data.status === "success") {
+                    appendLog("INFO", "Sentiment", `AI 감성 분석 모드가 ${mode.toUpperCase()}(으)로 변경되었습니다.`);
+                    fetchSentimentState();
+                } else {
+                    appendLog("ERROR", "Sentiment", `모드 변경 실패: ${data.message}`);
+                }
+            } catch (err) {
+                console.error("Failed to change sentiment mode:", err);
+            }
+        });
+    }
+
+    const btnTrigger = document.getElementById("btn-trigger-sentiment");
+    if (btnTrigger) {
+        btnTrigger.addEventListener("click", async () => {
+            appendLog("INFO", "Sentiment", `${activeSymbol} 즉시 뉴스 수집 및 감성 분석 구동 시작...`);
+            try {
+                const response = await fetch('/api/trigger_sentiment_update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: activeSymbol })
+                });
+                const data = await response.json();
+                if (data.status === "success") {
+                    appendLog("INFO", "Sentiment", `분석 요청 전송 완료. 백그라운드 연산 진행 중...`);
+                    // Delay slightly to allow AI to respond, then fetch state
+                    setTimeout(fetchSentimentState, 3000);
+                } else {
+                    appendLog("ERROR", "Sentiment", `분석 요청 실패: ${data.message}`);
+                }
+            } catch (err) {
+                console.error("Failed to trigger sentiment update:", err);
+            }
+        });
+    }
+}
+
+async function fetchSentimentState() {
+    try {
+        const response = await fetch(`/api/sentiment_state?symbol=${activeSymbol}`);
+        const data = await response.json();
+        
+        // Update selector value if it exists but not focused
+        const selectEl = document.getElementById("sentiment-engine-select");
+        if (selectEl && document.activeElement !== selectEl) {
+            selectEl.value = data.mode;
+        }
+        
+        const sentimentInfo = data.latest_sentiment[activeSymbol] || { sentiment: "Neutral", score: 0.0, summary: "분석 이력 없음" };
+        
+        // Update Badge and Score
+        const badgeEl = document.getElementById("sentiment-badge");
+        const scoreEl = document.getElementById("sentiment-score-text");
+        const summaryEl = document.getElementById("sentiment-summary-text");
+        
+        if (badgeEl) {
+            badgeEl.innerText = sentimentInfo.sentiment;
+            if (sentimentInfo.sentiment.toUpperCase() === "BULLISH") {
+                badgeEl.style.backgroundColor = "rgba(16, 185, 129, 0.15)";
+                badgeEl.style.color = "var(--color-success)";
+            } else if (sentimentInfo.sentiment.toUpperCase() === "BEARISH") {
+                badgeEl.style.backgroundColor = "rgba(239, 68, 68, 0.15)";
+                badgeEl.style.color = "var(--color-panic)";
+            } else {
+                badgeEl.style.backgroundColor = "rgba(255, 255, 255, 0.05)";
+                badgeEl.style.color = "var(--text-secondary)";
+            }
+        }
+        
+        if (scoreEl) {
+            scoreEl.innerText = (sentimentInfo.score >= 0 ? "+" : "") + sentimentInfo.score.toFixed(2);
+            scoreEl.style.color = sentimentInfo.score > 0 ? "var(--color-success)" : (sentimentInfo.score < 0 ? "var(--color-panic)" : "var(--text-primary)");
+        }
+        
+        if (summaryEl) {
+            summaryEl.innerText = sentimentInfo.summary;
+        }
+        
+        // Render News feed
+        const newsFeedEl = document.getElementById("sentiment-news-feed");
+        if (newsFeedEl) {
+            newsFeedEl.innerHTML = "";
+            if (!data.news_list || data.news_list.length === 0) {
+                newsFeedEl.innerHTML = `<div style="text-align: center; color: var(--text-secondary); padding: 20px;">수집된 뉴스가 없습니다.</div>`;
+            } else {
+                data.news_list.forEach(n => {
+                    const div = document.createElement("div");
+                    div.style.borderBottom = "1px solid rgba(255, 255, 255, 0.02)";
+                    div.style.paddingBottom = "6px";
+                    
+                    const timeStr = n.published || "";
+                    div.innerHTML = `
+                        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 2px;">
+                            <a href="${n.link}" target="_blank" style="color: var(--text-primary); text-decoration: none; hover: underline;">${n.title}</a>
+                        </div>
+                        <div style="font-size: 10px; color: var(--text-secondary);">${timeStr}</div>
+                    `;
+                    newsFeedEl.appendChild(div);
+                });
+            }
+        }
+        
+        // Render memory reflection
+        const reflectionEl = document.getElementById("sentiment-reflection-log");
+        if (reflectionEl) {
+            reflectionEl.innerText = data.past_memory || "과거 성찰 내역이 없습니다.";
+        }
+    } catch (e) {
+        console.error("Error fetching sentiment state:", e);
+    }
+}
+
 
