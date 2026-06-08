@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>안티그래비티 빗썸 자동매매 관제시스템</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div id="app-container">
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar">
+            <div class="logo-container">
+                <i class="fa-solid class logo-icon fa-circle-nodes"></i>
+                <span class="logo-text">ANTIGRAVITY</span>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item active" data-target="screen-1">
+                    <i class="fa-solid fa-gauge"></i>
+                    <span>종합 관제 대시보드</span>
+                </li>
+                <li class="nav-item" data-target="screen-2">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>가동 중인 전략</span>
+                </li>
+                <li class="nav-item" data-target="screen-3">
+                    <i class="fa-solid fa-receipt"></i>
+                    <span>상세 거래 내역</span>
+                </li>
+                <li class="nav-item" data-target="screen-4">
+                    <i class="fa-solid fa-database"></i>
+                    <span>시계열 DB 상태</span>
+                </li>
+                <li class="nav-item" data-target="screen-5">
+                    <i class="fa-solid fa-terminal"></i>
+                    <span>시스템 로그 콘솔</span>
+                </li>
+                <li class="nav-item" data-target="screen-6">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>수동 및 조건 설정</span>
+                </li>
+                <li class="nav-item" data-target="screen-7">
+                    <i class="fa-solid fa-desktop"></i>
+                    <span>통합 트레이딩 데스크</span>
+                </li>
+                <li class="nav-item" data-target="screen-8">
+                    <i class="fa-solid fa-blender"></i>
+                    <span>종목별 전략 믹서</span>
+                </li>
+            </ul>
+        </aside>
+
+        <!-- Right Main View -->
+        <main id="main-area">
+            <!-- Header -->
+            <header id="header">
+                <div class="header-title" id="current-screen-title">종합 관제 대시보드</div>
+                <div class="header-controls">
+
+                    <!-- Status Indicator -->
+                    <div class="status-indicator">
+                        <div class="status-dot"></div>
+                        <span id="bot-status-text">가동 중</span>
+                    </div>
+                    <!-- PANIC Button -->
+                    <button class="btn-panic" id="panic-button">
+                        <i class="fa-solid fa-triangle-exclamation"></i> 비상 정지 (PANIC)
+                    </button>
+                </div>
+            </header>
+
+            <!-- Content Container -->
+            <div id="content-body">
+                
+                <!-- Screen 1: Dashboard -->
+                <div class="screen-container active" id="screen-1">
+                    <div class="grid-layout dashboard-grid">
+                        <!-- Summary metrics -->
+                        <div class="asset-summary-row">
+                            <div class="summary-card">
+                                <span class="summary-label">총 평가 자산 (Total Asset)</span>
+                                <span class="summary-val" id="val-total-assets">10,000,000 KRW</span>
+                                <span class="summary-change change-up" id="change-total-assets">+0.0%</span>
+                            </div>
+                            <div class="summary-card">
+                                <span class="summary-label">가용 원화 잔고 (Cash)</span>
+                                <span class="summary-val" id="val-cash">2,000,000 KRW</span>
+                                <span class="summary-change" style="color: var(--text-secondary)">안전 비율 준수</span>
+                            </div>
+                            <div class="summary-card">
+                                <span class="summary-label">포트폴리오 리스크 상태</span>
+                                <span class="summary-val" id="val-risk">1.85% / 2.0%</span>
+                                <span class="summary-change change-up">2% 룰 제한 이내</span>
+                            </div>
+                            <div class="summary-card">
+                                <span class="summary-label">오늘의 실현 손익 (PnL)</span>
+                                <span class="summary-val" id="val-today-pnl">+150,000 KRW</span>
+                                <span class="summary-change change-up" id="pct-today-pnl">+1.52%</span>
+                            </div>
+                        </div>
+
+                        <!-- Live Chart -->
+                        <div class="panel-card chart-panel">
+                            <div class="panel-header">
+                                <span class="panel-title">실시간 BTC/KRW 틱 캔들 차트</span>
+                                <div class="coin-selector-inline">
+                                    <span style="font-size: 13px; color: var(--color-manual); font-weight: 600;">KRW-BTC 실시간 모니터링</span>
+                                </div>
+                            </div>
+                            <div class="chart-canvas-container">
+                                <canvas id="dashboard-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- FreqAI Status -->
+                        <div class="panel-card ai-status-panel">
+                            <div class="panel-header">
+                                <span class="panel-title">FreqAI 인퍼런스 엔진 현황</span>
+                                <span class="ai-badge">ACTIVE</span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <div class="ai-stat-row">
+                                    <span class="ai-stat-label">예측 시그널 (Signal)</span>
+                                    <span style="font-weight: 700; color: var(--color-success);" id="ai-signal-text">강력 매수 (84.2%)</span>
+                                </div>
+                                <div class="ai-stat-row">
+                                    <span class="ai-stat-label">에포크 재학습률 (Epochs)</span>
+                                    <span>2,480 epochs</span>
+                                </div>
+                                <div class="ai-stat-row">
+                                    <span class="ai-stat-label">학습 손실율 (MSE)</span>
+                                    <span>0.0024</span>
+                                </div>
+                                <div class="ai-stat-row">
+                                    <span class="ai-stat-label">현재 RSI 점수</span>
+                                    <span id="ai-rsi-score">32.4</span>
+                                </div>
+                                <div class="ai-stat-row">
+                                    <span class="ai-stat-label">현재 볼린저 점수</span>
+                                    <span id="ai-bb-score">41.8</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Active Positions -->
+                        <div class="panel-card positions-panel">
+                            <div class="panel-header">
+                                <span class="panel-title">가동 중인 거래 포지션 모니터</span>
+                            </div>
+                            <div class="custom-table-container">
+                                <table class="custom-table">
+                                    <thead>
+                                        <tr>
+                                            <th>종목</th>
+                                            <th>진입가</th>
+                                            <th>현재가</th>
+                                            <th>보유수량</th>
+                                            <th>평가손익</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="active-positions-table">
+                                        <tr>
+                                            <td style="font-weight: 600;">KRW-BTC</td>
+                                            <td>91,200,000 KRW</td>
+                                            <td>91,500,000 KRW</td>
+                                            <td>0.05 BTC</td>
+                                            <td class="change-up" style="font-weight: 600;">+15,000 KRW (+0.32%)</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Logs Summary -->
+                        <div class="panel-card logs-panel">
+                            <div class="panel-header">
+                                <span class="panel-title">실시간 가동 로그 요약</span>
+                                <span style="font-size: 11px; color: var(--text-secondary);" id="tick-speed-text">1,248 틱/초</span>
+                            </div>
+                            <div class="log-list-mini" id="mini-log-console">
+                                <!-- Rendered dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 2: Active Strategies -->
+                <div class="screen-container" id="screen-2">
+                    <div class="grid-layout" style="grid-template-columns: 2fr 1fr;">
+                        <div class="panel-card" style="height: 600px;">
+                            <div class="panel-header">
+                                <span class="panel-title">전략 누적 백테스트 수익률 곡선 (AI vs Buy & Hold)</span>
+                            </div>
+                            <div style="height: 520px;">
+                                <canvas id="strategy-perf-chart"></canvas>
+                            </div>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            <div class="panel-card">
+                                <div class="panel-header"><span class="panel-title">AI 모델 파라미터</span></div>
+                                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+                                    <div class="ai-stat-row"><span class="ai-stat-label">모델명</span><span>LightGBM Regressor</span></div>
+                                    <div class="ai-stat-row"><span class="ai-stat-label">특성 수 (Features)</span><span>14,280 features</span></div>
+                                    <div class="ai-stat-row"><span class="ai-stat-label">최종 훈련</span><span>1시간 전</span></div>
+                                </div>
+                            </div>
+                            <div class="panel-card">
+                                <div class="panel-header"><span class="panel-title">활성 전략 기법 가동 리스트</span></div>
+                                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+                                    <div class="ai-stat-row"><span class="ai-stat-label">AI 예측 엔진</span><span class="change-up">가동</span></div>
+                                    <div class="ai-stat-row"><span class="ai-stat-label">볼린저 밴드 역추세</span><span class="change-up">가동</span></div>
+                                    <div class="ai-stat-row"><span class="ai-stat-label">RSI 모멘텀 돌파</span><span class="change-up">가동</span></div>
+                                    <div class="ai-stat-row"><span class="ai-stat-label">MACD 오실레이터</span><span style="color: var(--text-secondary);">대기</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 3: Trade History -->
+                <div class="screen-container" id="screen-3">
+                    <div class="panel-card" style="margin-bottom: 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+                        <div style="text-align: center; border-right: 1px solid rgba(255, 255, 255, 0.05);">
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">누적 거래 횟수</div>
+                            <div style="font-family: var(--font-outfit); font-size: 24px; font-weight: 700;" id="history-total-trades">142회</div>
+                        </div>
+                        <div style="text-align: center; border-right: 1px solid rgba(255, 255, 255, 0.05);">
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">평균 거래 승률</div>
+                            <div style="font-family: var(--font-outfit); font-size: 24px; font-weight: 700; color: var(--color-success);" id="history-win-rate">85.2%</div>
+                        </div>
+                        <div style="text-align: center; border-right: 1px solid rgba(255, 255, 255, 0.05);">
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Profit Factor</div>
+                            <div style="font-family: var(--font-outfit); font-size: 24px; font-weight: 700;" id="history-profit-factor">2.42</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">최대 낙폭 (MDD)</div>
+                            <div style="font-family: var(--font-outfit); font-size: 24px; font-weight: 700; color: var(--color-panic);" id="history-mdd">4.21%</div>
+                        </div>
+                    </div>
+                    <div class="panel-card">
+                        <div class="panel-header">
+                            <span class="panel-title">상세 거래 체결 이력 그리드 (행 클릭 시 영수증 확인)</span>
+                        </div>
+                        <div class="trade-history-container">
+                            <table class="custom-table" style="max-height: none;">
+                                <thead>
+                                    <tr>
+                                        <th>체결 시각</th>
+                                        <th>종목</th>
+                                        <th>구분</th>
+                                        <th>체결가</th>
+                                        <th>체결수량</th>
+                                        <th>수수료</th>
+                                        <th>실현 손익</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trade-history-table-body">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 4: 시계열 DB 상태 -->
+                <div class="screen-container" id="screen-4">
+                    <div class="grid-layout" style="grid-template-columns: 1fr 2fr;">
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            <div class="panel-card">
+                                <div class="panel-header"><span class="panel-title">데이터베이스 일반</span></div>
+                                <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+                                    <div class="ai-stat-row"><span class="ai-stat-label">엔진</span><span>TimescaleDB (PostgreSQL)</span></div>
+                                    <div class="ai-stat-row"><span class="ai-stat-label">호스트</span><span id="db-host-val">localhost:5432</span></div>
+                                    <div class="ai-stat-row"><span class="ai-stat-label">적재 속도</span><span class="change-up">1,248 틱/초</span></div>
+                                    <div class="ai-stat-row"><span class="ai-stat-label">총 틱 수</span><span id="db-total-ticks-count">1,048,576</span></div>
+                                </div>
+                            </div>
+                            <div class="panel-card">
+                                <div class="panel-header"><span class="panel-title">Continuous Aggregates</span></div>
+                                <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+                                    <div class="ai-stat-row"><span class="ai-stat-label">ohlcv_1m</span><span class="ai-badge">ACTIVE</span></div>
+                                    <div class="ai-stat-row"><span class="ai-stat-label">ohlcv_5m</span><span class="ai-badge">ACTIVE</span></div>
+                                    <div class="ai-stat-row"><span class="ai-stat-label">ohlcv_1h</span><span class="ai-badge">ACTIVE</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-card" style="height: 500px;">
+                            <div class="panel-header"><span class="panel-title">시계열 데이터베이스 디스크 사용량 추이</span></div>
+                            <div style="height: 420px;">
+                                <canvas id="db-disk-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 5: 시스템 로그 콘솔 -->
+                <div class="screen-container" id="screen-5">
+                    <div class="panel-card" style="height: 100%; display: flex; flex-direction: column;">
+                        <div class="log-filters">
+                            <button class="btn-filter active" data-level="ALL">ALL</button>
+                            <button class="btn-filter" data-level="INFO">INFO</button>
+                            <button class="btn-filter" data-level="WARNING">WARN</button>
+                            <button class="btn-filter" data-level="ERROR">ERROR</button>
+                            <button class="btn-filter" data-level="RISK">RISK</button>
+                        </div>
+                        <div class="log-console" id="console-logs-container">
+                            <!-- Raw Logs Rendered Here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 6: 수동 및 조건 설정 -->
+                <div class="screen-container" id="screen-6">
+                    <div class="grid-layout manual-trading-grid">
+                        <!-- Manual Order Panel -->
+                        <div class="panel-card">
+                            <div class="panel-header">
+                                <span class="panel-title">수동 즉시 주문 데스크</span>
+                            </div>
+                            <div class="order-form">
+                                <div class="form-group">
+                                    <label>거래 대상 종목 선택</label>
+                                    <select class="custom-select" id="manual-order-symbol">
+                                        <option value="KRW-BTC">★ KRW-BTC (비트코인)</option>
+                                        <option value="KRW-ETH">★ KRW-ETH (이더리움)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>주문 가격 (KRW)</label>
+                                    <input type="number" class="custom-input" id="manual-order-price" value="91200000">
+                                </div>
+                                <div class="form-group">
+                                    <label>주문 수량 (BTC / ETH)</label>
+                                    <input type="number" class="custom-input" id="manual-order-volume" step="0.001" value="0.05">
+                                </div>
+                                <div class="order-btn-group">
+                                    <button class="btn-order-buy" id="manual-buy-submit-btn">즉시 매수 (BUY)</button>
+                                    <button class="btn-order-sell" id="manual-sell-submit-btn">즉시 매도 (SELL)</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Conditional priorities -->
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            <div class="panel-card">
+                                <div class="panel-header">
+                                    <span class="panel-title">조건부 규칙 및 우선순위 설정</span>
+                                </div>
+                                <div style="display: flex; flex-direction: column;">
+                                    <div class="switch-row">
+                                        <div>
+                                            <div style="font-size: 13px; font-weight: 600;">매수 신호 경합 시 우선순위</div>
+                                            <div class="switch-label-desc">AI 모델 판단 우선으로 자동 집행합니다.</div>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" checked id="buy-priority-toggle">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="switch-row">
+                                        <div>
+                                            <div style="font-size: 13px; font-weight: 600;">매도 신호 경합 시 우선순위</div>
+                                            <div class="switch-label-desc">RSI/볼린저 손절 등 사용자 규칙을 최우선 적용합니다.</div>
+                                        </div>
+                                        <label class="switch">
+                                            <input type="checkbox" checked id="sell-priority-toggle">
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="panel-card">
+                                <div class="panel-header">
+                                    <span class="panel-title">AI 조건 자동 최적화 모드 설정</span>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+                                    <label style="display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer;">
+                                        <input type="radio" name="ai-opt-mode" value="manual" checked>
+                                        <span>수동 고정 모드 (사용자 설정 비율 강제 적용)</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer;">
+                                        <input type="radio" name="ai-opt-mode" value="stats">
+                                        <span>수학적 통계 최적화 모드 (30일 백테스트 데이터 기반)</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer;">
+                                        <input type="radio" name="ai-opt-mode" value="llm">
+                                        <span>LLM 종합 추론 모드 (Gemini 실시간 거시 리스크 반영)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 7: 통합 트레이딩 데스크 -->
+                <div class="screen-container" id="screen-7">
+                    <div class="grid-layout pro-desk-grid">
+                        <!-- Live candles -->
+                        <div class="panel-card pro-chart">
+                            <div class="panel-header">
+                                <span class="panel-title">Pro-Desk 실시간 호가/체결 차트</span>
+                            </div>
+                            <div class="chart-canvas-container" style="height: 340px;">
+                                <canvas id="pro-desk-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Quick manual order -->
+                        <div class="panel-card pro-order-panel">
+                            <div class="panel-header">
+                                <span class="panel-title">트레이딩 데스크 수동 주문</span>
+                            </div>
+                            <div class="order-form" style="margin-top: 4px;">
+                                <div class="form-group">
+                                    <label>대상 자산</label>
+                                    <select class="custom-select" id="pro-order-symbol">
+                                        <option value="KRW-BTC">KRW-BTC</option>
+                                        <option value="KRW-ETH">KRW-ETH</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>매매 단가 (KRW)</label>
+                                    <input type="number" class="custom-input" id="pro-order-price" value="91200000">
+                                </div>
+                                <div class="form-group">
+                                    <label>매매 수량</label>
+                                    <input type="number" class="custom-input" id="pro-order-volume" value="0.05" step="0.001">
+                                </div>
+                                <div class="order-btn-group" style="margin-top: 10px;">
+                                    <button class="btn-order-buy" id="pro-buy-btn">매수 (BUY)</button>
+                                    <button class="btn-order-sell" id="pro-sell-btn">매도 (SELL)</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Gemini AI Live Report -->
+                        <div class="pro-ai-briefing">
+                            <div class="panel-header">
+                                <span class="panel-title" style="color: var(--color-ai);">
+                                    <i class="fa-solid fa-brain"></i> Gemini AI 실시간 투자 의사결정 브리핑 보고서
+                                </span>
+                                <span style="font-size: 11px; color: var(--text-secondary);">업데이트: 실시간 반영</span>
+                            </div>
+                            <div class="briefing-text">
+                                <p style="font-weight: 600; color: var(--text-primary);">[시장 매크로 및 거래쌍 분석 요약]</p>
+                                <p style="margin-top: 6px;">현재 KRW-BTC는 91,200,000 KRW 지지선 부근에서 강력한 하방 경직성을 확보하고 있습니다. FreqAI 모델의 상승 예측 신뢰도는 84.2%로 산출되었으며, 실시간 연동된 온체인 거래소 예치 자산 흐름은 기관의 완만한 장외 거래(OTC) 누적 단계에 진입했음을 시사합니다.</p>
+                                <ul class="briefing-bullet">
+                                    <li><strong>매수 권고 가격대:</strong> 91,000,000 KRW ~ 91,500,000 KRW 분할 진입 추천.</li>
+                                    <li><strong>리스크 관리 지침:</strong> 2% 룰에 의거하여 최대 손실 한도를 89,380,000 KRW로 설정할 것을 제안합니다.</li>
+                                    <li><strong>매도 대기 권장:</strong> 1.5초 실시간 후보고 검증기가 켜져 있으며, 지지선 이탈 없는 변동 구간에서는 급격한 수동 매도를 보류하는 것이 자산 증가에 유리합니다.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screen 8: 종목별 전략 믹서 -->
+                <div class="screen-container" id="screen-8">
+                    <div class="grid-layout strategy-mixer-grid">
+                        
+                        <!-- Left Panel: monitored list -->
+                        <div class="panel-card" style="height: 680px; display: flex; flex-direction: column;">
+                            <div class="panel-header">
+                                <span class="panel-title">감시 종목 리스트</span>
+                            </div>
+                            <div class="coin-list-panel" id="mixer-coin-list">
+                                <div class="coin-card-item active" data-symbol="KRW-BTC">
+                                    <span style="font-weight: 700;">KRW-BTC</span>
+                                    <span class="badge-ai">AI 위임</span>
+                                </div>
+                                <div class="coin-card-item" data-symbol="KRW-ETH">
+                                    <span style="font-weight: 700;">KRW-ETH</span>
+                                    <span class="badge-ai">AI 위임</span>
+                                </div>
+                            </div>
+                            <button class="btn-add-tech" id="mixer-add-coin-btn" style="margin-top: auto; border-style: solid; border-color: var(--color-manual); color: var(--color-manual);">
+                                <i class="fa-solid fa-plus"></i> 감시 종목 추가
+                            </button>
+                        </div>
+
+                        <!-- Middle Panel: strategy sliders -->
+                        <div class="panel-card" style="height: 680px; display: flex; flex-direction: column;">
+                            <div class="panel-header">
+                                <span class="panel-title" id="mixer-active-symbol-title">전략 혼합 믹서 (KRW-BTC)</span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 12px; color: var(--text-secondary);">AI 오토파일럿</span>
+                                    <label class="switch">
+                                        <input type="checkbox" checked id="mixer-autopilot-toggle">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="mixer-charts-container">
+                                <div class="mixer-donut-container">
+                                    <canvas id="mixer-donut-chart"></canvas>
+                                    <div class="mixer-donut-center">🎯</div>
+                                </div>
+                                <div style="flex: 1; font-size: 13px; color: var(--text-secondary);">
+                                    <p style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px;">믹싱 포트폴리오 가이드</p>
+                                    각 슬라이더의 값을 조정하여 매매 신호 계산 비율을 핫스왑할 수 있습니다. 믹싱 가중치 합산은 자동으로 백분율 정규화 처리됩니다.
+                                </div>
+                            </div>
+
+                            <!-- sliders list -->
+                            <div class="mixer-sliders-list" id="mixer-sliders-list-container">
+                                <!-- Rendered dynamically -->
+                            </div>
+
+                            <button class="btn-add-tech" id="mixer-add-strategy-btn">
+                                <i class="fa-solid fa-plus"></i> 새로운 전략 추가 (50종 라이브러리 연동)
+                            </button>
+
+                            <!-- AI recommended box -->
+                            <div style="margin-top: auto; background-color: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: 8px; padding: 12px 16px; font-size: 12px;">
+                                <div style="font-weight: 700; color: var(--color-success); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI 추천 가중치 조정
+                                </div>
+                                <div style="color: var(--text-secondary); margin-bottom: 8px;">
+                                    최근 시장 변동성 분석에 따라 FreqAI 비중을 높이고 오실레이터 비중을 낮출 것을 제안합니다.
+                                </div>
+                                <button class="btn-modal-confirm btn-modal-confirm-success" id="mixer-apply-recommend-btn" style="padding: 6px 12px; font-size: 11px;">
+                                    추천 최적 비율 즉시 적용
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: logs & preview -->
+                        <div class="panel-card" style="height: 680px; display: flex; flex-direction: column;">
+                            <div class="panel-header">
+                                <span class="panel-title">예상 성과 및 활동 로그</span>
+                            </div>
+                            <div style="height: 180px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 16px;">
+                                <canvas id="mixer-preview-chart"></canvas>
+                            </div>
+                            <div style="flex: 1; overflow-y: auto;">
+                                <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 10px;">AI 오토파일럿 결정 타임라인</span>
+                                <div class="log-list-mini" id="mixer-activity-timeline" style="height: 380px;">
+                                    <!-- Rendered dynamically -->
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals Layout Area -->
+
+    <!-- Modal 1-M: PANIC Confirmation Modal -->
+    <div class="modal-overlay" id="modal-panic">
+        <div class="modal-box modal-border-panic">
+            <div class="modal-header" style="color: var(--color-panic);">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>비상 정지 (PANIC) 최종 승인</span>
+            </div>
+            <div class="modal-body">
+                이 작업은 즉시 빗썸 거래소의 <strong>모든 미체결 주문을 일괄 취소</strong>하고, 현재 보유 중인 <strong>모든 가상자산 포지션을 시장가로 전량 매도 청산(Flatten)</strong>합니다. 진행하시겠습니까?
+            </div>
+            <div class="modal-footer">
+                <button class="btn-modal-cancel" id="btn-panic-cancel">아니오 (취소)</button>
+                <button class="btn-modal-confirm btn-modal-confirm-panic" id="btn-panic-confirm">예, 즉시 전량 매도</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3-M: Trade Receipt Modal -->
+    <div class="modal-overlay" id="modal-receipt">
+        <div class="modal-box modal-border-success">
+            <div class="modal-header" style="color: var(--color-success);">
+                <i class="fa-solid fa-circle-check"></i>
+                <span>체결 상세 영수증</span>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="ai-stat-row"><span class="ai-stat-label">거래 번호</span><span id="receipt-id">#TRD-1029</span></div>
+                <div class="ai-stat-row"><span class="ai-stat-label">체결 시각</span><span id="receipt-time">2026-06-07 22:10:37</span></div>
+                <div class="ai-stat-row"><span class="ai-stat-label">대상 자산</span><span id="receipt-symbol" style="font-weight: 700;">KRW-BTC</span></div>
+                <div class="ai-stat-row"><span class="ai-stat-label">거래 구분</span><span id="receipt-side" class="badge-ai" style="background-color: rgba(16, 185, 129, 0.1); color: var(--color-success);">BUY</span></div>
+                <div class="ai-stat-row"><span class="ai-stat-label">체결 단가</span><span id="receipt-price">91,500,000 KRW</span></div>
+                <div class="ai-stat-row"><span class="ai-stat-label">체결 수량</span><span id="receipt-volume">0.05 BTC</span></div>
+                <div class="ai-stat-row"><span class="ai-stat-label">수수료 (0.25%)</span><span id="receipt-fee">11,437 KRW</span></div>
+                <div class="ai-stat-row"><span class="ai-stat-label">실현 손익</span><span id="receipt-pnl" class="change-up" style="font-weight: 700;">+0.0 KRW</span></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-modal-confirm btn-modal-confirm-success" id="btn-receipt-close" style="flex: 1;">확인 및 창 닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 6-M: Manual Order Confirm Modal -->
+    <div class="modal-overlay" id="modal-order-confirm">
+        <div class="modal-box modal-border-manual">
+            <div class="modal-header" style="color: var(--color-manual);">
+                <i class="fa-solid fa-coins"></i>
+                <span>수동 지정가 매매 전송 확인</span>
+            </div>
+            <div class="modal-body" id="order-confirm-body-text">
+                BTC 0.05개를 91,200,000 KRW에 매수 전송하시겠습니까?
+            </div>
+            <div class="modal-footer">
+                <button class="btn-modal-cancel" id="btn-order-cancel">아니오 (주문 취소)</button>
+                <button class="btn-modal-confirm btn-modal-confirm-manual" id="btn-order-confirm">예, 주문 즉시 전송</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 7-M: AI Sell Assist Warning Modal -->
+    <div class="modal-overlay" id="modal-sell-warning">
+        <div class="modal-box modal-border-warning">
+            <div class="modal-header" style="color: var(--color-warning);">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>AI 매도 보조 경고 (1.5초 실시간 검증)</span>
+            </div>
+            <div class="modal-body">
+                지지선 이탈 분석 결과, **현재 지점은 단기 반등Support 라인**이 감지되어 즉시 매도하기에 불리한 타이밍입니다.
+                <div style="background-color: rgba(245, 158, 11, 0.05); padding: 10px; border-radius: 6px; margin-top: 10px; font-weight: 600; color: var(--color-warning);">
+                    AI 예측: 1.2초 내 즉각적 반등 확률 82.4% 감지
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-modal-cancel" id="btn-sell-warn-cancel">매도 취소 (대기)</button>
+                <button class="btn-modal-confirm btn-modal-confirm-panic" id="btn-sell-warn-force" style="background-color: var(--color-panic); color: white;">매도 강행 (진행)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 8-M: Add Monitored Symbol Dialog -->
+    <div class="modal-overlay" id="modal-add-symbol">
+        <div class="modal-box modal-border-success">
+            <div class="modal-header" style="color: var(--color-success);">
+                <i class="fa-solid fa-plus"></i>
+                <span>감시 종목 추가 및 기법 믹싱</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label>가상자산 코드 선택</label>
+                    <select class="custom-select" id="add-symbol-code" style="width: 100%;">
+                        <option value="KRW-XRP">★ KRW-XRP (리플)</option>
+                        <option value="KRW-ADA">★ KRW-ADA (에이다)</option>
+                        <option value="KRW-SOL">★ KRW-SOL (솔라나)</option>
+                        <option value="KRW-DOGE">★ KRW-DOGE (도지코인)</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label>FreqAI 자동 매수 최소 임계치</label>
+                    <input type="number" class="custom-input" id="add-symbol-threshold" value="75" min="50" max="95" style="width: 100%;">
+                </div>
+                <div class="form-group">
+                    <label>초기 믹싱 전략 가중치 설정</label>
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--text-secondary);">
+                        <div>• AI 예측 엔진 (AI): 50%</div>
+                        <div>• 볼린저 밴드 (BOLLINGER): 30%</div>
+                        <div>• RSI 상대강도지수 (RSI): 20%</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-modal-cancel" id="btn-add-symbol-close">취소 (창 닫기)</button>
+                <button class="btn-modal-confirm btn-modal-confirm-success" id="btn-add-symbol-submit">종목 추가 및 활성화</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
